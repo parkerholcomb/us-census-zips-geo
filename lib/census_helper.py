@@ -9,7 +9,7 @@ def _features_only(df): return df[[name for name in df.columns if name.startswit
 
 def _load_census_zips(features_only=True) -> pd.DataFrame:
     # todo put the census.gov link
-    df = pd.read_csv("lib/data/DECENNIALSF12010.P1_2022-06-09T164557/DECENNIALSF12010.P1_data_with_overlays_2022-04-27T100124.csv")
+    df = pd.read_csv("lib/data/census_gov/DECENNIALSF12010.P1_2022-06-09T164557/DECENNIALSF12010.P1_data_with_overlays_2022-04-27T100124.csv")
     df['_census_total'] = df['Total'].apply(lambda x: int(x))
     df['_zip'] = df['Geographic Area Name'].apply(lambda x: x.split(" ")[-1])
     assert(type(df['_zip'][0]) == str)
@@ -20,7 +20,7 @@ def _load_zip_lat_lng(features_only = True, force=False) -> pd.DataFrame:
     # this takes about 16 seconds from root, so going to cache (<1s load)
     if force:
         import geopandas as gpd
-        shapefile = gpd.read_file("lib/data/tl_2021_us_zcta520/tl_2021_us_zcta520.shp")
+        shapefile = gpd.read_file("lib/data/tl_2021_us_zcta520/tl_2021_us_zcta520.shp") # this is like 800mb
         df = shapefile
         df['_zip'] = df['ZCTA5CE20']
         df['_lat'] = df['INTPTLAT20'].apply(lambda x: float(x))
@@ -29,10 +29,13 @@ def _load_zip_lat_lng(features_only = True, force=False) -> pd.DataFrame:
         df = pd.read_feather("lib/data/_zip_lat_lng.feather")
     return _features_only(df) if features_only else df
 
-def load_sweetened_zips():
-    zip_lat_lng = _load_zip_lat_lng(force=False)
-    # display(zip_lat_lng.head())
-    census_zips = _load_census_zips()
-    # display(census_zips.head())
-    df = zip_lat_lng.merge(census_zips)
+def load_sweetened_zips(force=False):
+    if force:
+        zip_lat_lng = _load_zip_lat_lng(force=False)
+        # display(zip_lat_lng.head())
+        census_zips = _load_census_zips()
+        # display(census_zips.head())
+        df = zip_lat_lng.merge(census_zips)
+    else:
+        df = pd.read_feather("lib/data/us_zips.feather")
     return df
