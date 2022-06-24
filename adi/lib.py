@@ -6,7 +6,16 @@ import plotly.express as px
 def get_state_codes() -> list:
     return list(pd.read_csv("state_codes.csv")['state'])
 
-## extract from wisc.edu
+def us_adi_zip5_stats(us_adi: pd.DataFrame) -> pd.DataFrame:
+    us_zips = pd.read_feather("data/us_zips.feather")
+    df = us_adi.groupby(['_zip5']).agg(
+        count=("_adi","count"),
+        min=("_adi","min"),
+        max=("_adi","max"),
+        adi_mean=("_adi","mean"),
+        std=("_adi","std"),
+    ).reset_index()
+    return df.merge(us_zips).dropna()
 
 
 ## once extracted
