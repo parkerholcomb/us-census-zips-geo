@@ -15,9 +15,10 @@ def us_adi_zip5_stats(us_adi: pd.DataFrame) -> pd.DataFrame:
         min=("_adi","min"),
         max=("_adi","max"),
         adi_mean=("_adi","mean"),
+        adi_median=("_adi","median"),
         std=("_adi","std"),
     ).reset_index()
-    return df.merge(us_zips).dropna()
+    return df.merge(us_zips).dropna().reset_index(drop=True)
 
 def draw_us_adi_distribution(us_adi):
     adi_freq = us_adi.groupby(['_adi']).agg(count=("_adi","count")).reset_index()
