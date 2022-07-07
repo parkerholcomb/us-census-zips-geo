@@ -3,6 +3,8 @@ import pandas as pd
 from geopy.distance import geodesic
 px.set_mapbox_access_token(open(".mapbox_token").read())
 
+adi = pd.read_feather("data/adi_stats_zip5.feather")
+
 def _load_states():
     """
         _state: str # 2 digit
@@ -10,10 +12,10 @@ def _load_states():
         _status_wp: 4 status_buckets
         _status: two buckets: protected, not_protected
     """
-    states = pd.read_csv("wp_roe_data.csv") # washington post
+    states = pd.read_csv("data/wp_roe_data.csv") # washington post
     states = states[['States','DATAWRAPPER']]
     states = states.rename(columns={"DATAWRAPPER":"_status_wp","States":"_state"})
-    adi = pd.read_feather("adi_stats_zip5.feather")
+    # adi = pd.read_feather("adi_stats_zip5.feather")
     state_populations = adi.groupby(['_state']).agg(census_total=("_census_total","sum")).reset_index()
     states = states.merge(state_populations)
 
@@ -27,7 +29,7 @@ def _load_states():
     return states.sort_values("_status", ascending=False).reset_index(drop=True)
 
 def _load_zip3_census():
-    adi = pd.read_feather("adi_stats_zip5.feather")
+    # adi = pd.read_feather("adi_stats_zip5.feather")
     adi['_zip3'] = adi['_zip5'].apply(lambda x: f"{x[0:3]}**")
     adi_zip3 = adi.groupby(['_state','_zip3']).agg(
         _lat = ("_lat","mean"),
@@ -36,6 +38,7 @@ def _load_zip3_census():
         _adi_mean=("adi_median","mean")
     ).reset_index()
     return adi_zip3
+
 
 def _load_at_risk_zip3(adi_floor = 50):
     """
@@ -57,11 +60,11 @@ def _load_at_risk_zip3(adi_floor = 50):
     # print(len(unprotected), "zip3 unprotected")
     # unprotected
     at_risk = unprotected[unprotected['_adi_mean']>adi_floor].reset_index()
-    print(len(at_risk), "zip3 Location{} at risk with ADI above", adi_floor )
+    print(f"Finding distances to 10 closest clinics for each of {len(at_risk)} zip3 origin locations with ADI above", adi_floor )
     at_risk['_type'] = "at_risk"
     return at_risk
 
-adi = pd.read_feather("adi_stats_zip5.feather")
+# 
 def _load_synthetic_clinics(n=1000) -> pd.DataFrame:
     """ 
         Stand in Sample Method until I get the actual clinic locations. 
@@ -79,7 +82,7 @@ def _load_synthetic_clinics(n=1000) -> pd.DataFrame:
     """
     
     states = _load_states()
-    
+    adi = pd.read_feather("data/adi_stats_zip5.feather")
     protected_states = states[states['_status']=="protected"]['_state']
     adi_protected = adi[adi['_state'].isin(protected_states)].reset_index(drop=True)
     clinics = adi_protected.sample(n).reset_index(drop=True)
@@ -89,13 +92,12 @@ def _load_synthetic_clinics(n=1000) -> pd.DataFrame:
     clinics['_type'] = 'synthetic_clinic'
     return clinics
 
+# def _get_zip5_geo(zip5: str) -> tuple:
+#       adi = pd.read_feather("adi_stats_zip5.feather")
+#     loc = adi[adi['_zip5']==zip5].to_dict(orient="records")[0]
+#     return (loc['_lat'],loc['_lng'])
 
-def _get_zip5_geo(zip5: str) -> tuple:
-    adi = pd.read_feather("adi_stats_zip5.feather")
-    loc = adi[adi['_zip5']==zip5].to_dict(orient="records")[0]
-    return (loc['_lat'],loc['_lng'])
-
-zip3_census  =_load_zip3_census()
+zip3_census  = _load_zip3_census()
 def _get_zip3_geo(zip3: str) -> tuple:
     loc = zip3_census[zip3_census['_zip3']==zip3].to_dict(orient="records")[0]
     return (loc['_lat'],loc['_lng'])
@@ -104,12 +106,12 @@ def _get_zip3_geo(zip3: str) -> tuple:
 # sbs
 
 def _k_closest_clinics(origin_zip3: str, clinics: pd.DataFrame, k: int = 10) -> pd.DataFrame:
-    _zip3_geo: tuple = _get_zip3_geo(origin_zip3)
+    _origin_zip3_geo: tuple = _get_zip3_geo(origin_zip3)
     clinics = clinics.rename(columns={"_zip5": "_clinic_zip5"})  # consider normalizing
     clinics["_origin_zip3"] = origin_zip3
     # return clinics
     clinics["_distance"] = (
-        clinics["_clinic_geo"].apply(lambda x: geodesic(x, _zip3_geo).miles).astype(int)
+        clinics["_clinic_geo"].apply(lambda x: geodesic(x, _origin_zip3_geo).miles).astype(int)
     )  # gets distance to every target location in geodesic miles
     distance_sorted_clinics = clinics.sort_values("_distance").reset_index(drop=True)
     closest_k_clinics = distance_sorted_clinics[0:k]  # choose the closest k
